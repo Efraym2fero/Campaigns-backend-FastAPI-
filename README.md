@@ -46,8 +46,7 @@ project/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/campaign-api.git
-cd campaign-api
+git clone https://github.com/Efraym2fero/Campaigns-backend-FastAPI-.git
 ```
 
 ### 2. Create a virtual environment
