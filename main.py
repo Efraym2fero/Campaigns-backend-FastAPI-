@@ -45,27 +45,6 @@ async def lifeSpan(app:FastAPI):
 app = FastAPI(root_path="/api/v1",lifespan=lifeSpan)
 
 
-""" data = [
-    {
-        "id":1,
-        "name": "Party",
-        "date": datetime.now(),
-        "createdAt":datetime.now() 
-    },
-    {
-        "id":2,
-        "name": "Party2",
-        "date": datetime.now(),
-        "createdAt":datetime.now() 
-    },
-    {
-        "id":3,
-        "name": "Party3",
-        "date": datetime.now(),
-        "createdAt":datetime.now() 
-    }
-] """
-
 T = TypeVar("T")
 class Response(BaseModel,Generic[T]):
     data : T
