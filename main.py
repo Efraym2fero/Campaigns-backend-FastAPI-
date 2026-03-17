@@ -1,5 +1,7 @@
 
+import base64
 from contextlib import asynccontextmanager
+import json
 from random import randint
 from typing import Annotated, Any, Generic, Optional, TypeVar
 
@@ -10,7 +12,7 @@ from pydantic import BaseModel
 from sqlmodel import  Field, create_engine,SQLModel,Session, func, select
 
 class Campaign(SQLModel,table=True):
-    campID : int|None = Field(default=None,primary_key=True)
+    campID : int = Field(default=None,primary_key=True)
     campName:str = Field(index=True)
     campDate : datetime | None = Field(default=None,index=True)
     createdAt : datetime = Field(default_factory=lambda :datetime.now(timezone.utc), nullable=True,index=True)
@@ -61,12 +63,49 @@ class PaginatedRes(BaseModel,Generic[T]):
     next:Optional[str]
     prev:Optional[str]
 
+class CursorPaginatedRes(BaseModel,Generic[T]):
+    data : T
+    next:Optional[str]
+
+def encodeCursor(val):
+    data = json.dumps({"id" : val})
+    return base64.urlsafe_b64encode(data.encode()).decode()
+
+def decodeCursor(cursor):
+    decCur = base64.urlsafe_b64decode(cursor.encode()).decode()
+    data = json.loads(decCur)
+    return data.get("id")
+
+
 @app.get("/")
 async def root():
     return {"mesage":"You are in the root"}
 
-
 @app.get("/campaigns",response_model=PaginatedRes[list[Campaign]])
+async def getAllCampaigns(req:Request,s:sessionDep,page:int=Query(1,ge=1),pageSize:int = Query(10,ge=1)):
+    limit = pageSize
+    offset = (page -1)*limit
+    data = s.exec(select(Campaign).order_by(Campaign.campID).offset(offset).limit(limit)).all()
+    total = s.exec(select(func.count()).select_from(Campaign)).one()
+    baseURL = str(req.url).split("?")[0]
+
+    if offset+limit < total:
+        nextURL = f"{baseURL}?page={page+1}&pageSize={limit}"
+    else:
+        nextURL=None
+
+    if page>1:
+        prevURL = f"{baseURL}?page={page-1}&pageSize={limit}"
+    else:
+        prevURL = None
+    
+    return{
+        "data":data,
+        "next":nextURL,
+        "prev":prevURL
+        } 
+
+@app.get("/campaigns1",response_model=PaginatedRes[list[Campaign]])
 async def getAllCampaigns(req:Request,s:sessionDep,offset:int=Query(0,ge=0),limit:int = Query(10,ge=1)):
 
     data = s.exec(select(Campaign).order_by(Campaign.campID).offset(offset).limit(limit)).all()
@@ -88,6 +127,30 @@ async def getAllCampaigns(req:Request,s:sessionDep,offset:int=Query(0,ge=0),limi
         "next":nextURL,
         "prev":prevURL
         }
+
+
+
+@app.get("/campaigns2",response_model=CursorPaginatedRes[list[Campaign]])
+async def getAllCampaigns(req:Request,s:sessionDep,cursor:Optional[str],limit:int = Query(10,ge=1)):
+    cursorID = 0
+    if cursor:
+        cursorID = decodeCursor(cursor)
+
+    data = s.exec(select(Campaign).order_by(Campaign.campID).where(Campaign.campID > cursorID).limit(limit+1)).all()
+    baseURL = str(req.url).split("?")[0]
+    print(baseURL)
+    if len(data) > limit:
+        nextCur = encodeCursor(data[:limit][-1].campID)
+        print(nextCur)
+        nextURL = f"{baseURL}?cursor={nextCur}&limit={limit}"
+    else:
+        nextURL=None
+    
+    return{
+        "data":data[:limit],
+        "next":nextURL
+        }
+
 
 
 @app.get("/campaigns/{id}")
@@ -130,4 +193,4 @@ async def deleteCampaign(id:int,s:sessionDep):
 
 
 if __name__ == "__main__":
-    print("hi")
+    print(encodeCursor(0))
