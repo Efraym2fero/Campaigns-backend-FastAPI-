@@ -1,13 +1,13 @@
 
 from contextlib import asynccontextmanager
 from random import randint
-from typing import Annotated, Any, Generic, TypeVar
+from typing import Annotated, Any, Generic, Optional, TypeVar
 
-from fastapi import FastAPI, HTTPException, Request,Depends
+from fastapi import FastAPI, HTTPException, Query, Request,Depends
 from datetime import datetime, timezone
 
 from pydantic import BaseModel
-from sqlmodel import  Field, create_engine,SQLModel,Session, select
+from sqlmodel import  Field, create_engine,SQLModel,Session, func, select
 
 class Campaign(SQLModel,table=True):
     campID : int|None = Field(default=None,primary_key=True)
@@ -56,15 +56,40 @@ class CeateCampaign(SQLModel):
     campDate: datetime|None =None
 
 
+class PaginatedRes(BaseModel,Generic[T]):
+    data : T
+    next:Optional[str]
+    prev:Optional[str]
+
 @app.get("/")
 async def root():
     return {"mesage":"You are in the root"}
 
 
-@app.get("/campaigns")
-async def getAllCampaigns(s:sessionDep):
-    data = s.exec(select(Campaign)).all()
-    return{"campaigns":data}
+@app.get("/campaigns",response_model=PaginatedRes[list[Campaign]])
+async def getAllCampaigns(req:Request,s:sessionDep,page:int=Query(1,ge=1),pageSize:int = Query(10,ge=1)):
+    limit = pageSize
+    offset = (page -1)*limit
+    data = s.exec(select(Campaign).order_by(Campaign.campID).offset(offset).limit(limit)).all()
+    total = s.exec(select(func.count()).select_from(Campaign)).one()
+    baseURL = str(req.url).split("?")[0]
+    print(baseURL)
+
+    if offset+limit < total:
+        nextURL = f"{baseURL}?page={page+1}&pageSize={limit}"
+    else:
+        nextURL=None
+
+    if page>1:
+        prevURL = f"{baseURL}?page={page-1}&pageSize={limit}"
+    else:
+        prevURL = None
+    
+    return{
+        "data":data,
+        "next":nextURL,
+        "prev":prevURL
+        }
 
 
 @app.get("/campaigns/{id}")
