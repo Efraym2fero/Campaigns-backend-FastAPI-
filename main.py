@@ -67,21 +67,19 @@ async def root():
 
 
 @app.get("/campaigns",response_model=PaginatedRes[list[Campaign]])
-async def getAllCampaigns(req:Request,s:sessionDep,page:int=Query(1,ge=1),pageSize:int = Query(10,ge=1)):
-    limit = pageSize
-    offset = (page -1)*limit
+async def getAllCampaigns(req:Request,s:sessionDep,offset:int=Query(0,ge=0),limit:int = Query(10,ge=1)):
+
     data = s.exec(select(Campaign).order_by(Campaign.campID).offset(offset).limit(limit)).all()
     total = s.exec(select(func.count()).select_from(Campaign)).one()
     baseURL = str(req.url).split("?")[0]
-    print(baseURL)
 
     if offset+limit < total:
-        nextURL = f"{baseURL}?page={page+1}&pageSize={limit}"
+        nextURL = f"{baseURL}?offset={offset+limit}&limit={limit}"
     else:
         nextURL=None
 
-    if page>1:
-        prevURL = f"{baseURL}?page={page-1}&pageSize={limit}"
+    if offset > 0:
+        prevURL = f"{baseURL}?offset={max(0, offset-limit)}&limit={limit}"
     else:
         prevURL = None
     

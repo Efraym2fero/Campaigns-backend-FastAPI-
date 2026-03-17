@@ -77,7 +77,7 @@ pip install -r requirements.txt
 
 ---
 
-## ▶️ Running the Server
+##  Running the Server
 
 Start the API server with:
 
@@ -93,7 +93,7 @@ http://127.0.0.1:8000
 
 ---
 
-## 📚 API Documentation
+## API Documentation
 
 FastAPI automatically generates API docs.
 
@@ -192,7 +192,7 @@ Tables are automatically created on application startup.
 
 ---
 
-## 📦 Example Campaign Model
+## Example Campaign Model
 
 ```python
 class Campaign(SQLModel, table=True):
@@ -204,7 +204,7 @@ class Campaign(SQLModel, table=True):
 
 ---
 
-## 🧪 Example Response
+## Example Response
 
 ```json
 {
@@ -216,3 +216,167 @@ class Campaign(SQLModel, table=True):
   }
 }
 ```
+## Pagination Support
+
+### 1) Page-Based 
+
+The API supports pagination for retrieving campaigns efficiently.
+
+### Endpoint
+
+```http
+GET /campaigns?page=1&pageSize=10
+```
+
+### Query Parameters
+
+| Parameter  | Type | Default | Description                            |
+| ---------- | ---- | ------- | -------------------------------------- |
+| `page`     | int  | 1       | Page number (must be ≥ 1)              |
+| `pageSize` | int  | 10      | Number of items per page (must be ≥ 1) |
+
+---
+
+### Example Request
+
+```http
+GET /campaigns?page=2&pageSize=5
+```
+
+---
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "campID": 6,
+      "campName": "campaign 6",
+      "campDate": "2026-03-17T10:00:00",
+      "createdAt": "2026-03-17T10:00:00"
+    }
+  ],
+  "next": "http://127.0.0.1:8000/campaigns?page=3&pageSize=5",
+  "prev": "http://127.0.0.1:8000/campaigns?page=1&pageSize=5"
+}
+```
+
+---
+
+### 🔍 How It Works
+
+* Uses `limit` and `offset` for efficient database queries
+* Returns:
+
+  * `data` → current page results
+  * `next` → URL for next page (if exists)
+  * `prev` → URL for previous page (if exists)
+* Automatically calculates total records using:
+
+```python
+select(func.count()).select_from(Campaign)
+```
+
+---
+
+### ⚡ Notes
+
+* If there is no next page → `next = null`
+* If you are on the first page → `prev = null`
+---
+
+### 2) Offset-Based
+
+The API supports **offset-based pagination**, which is efficient and flexible for large datasets.
+
+---
+
+### Endpoint
+
+```http
+GET /campaigns?offset=0&limit=10
+```
+
+---
+
+### Query Parameters
+
+| Parameter | Type | Default | Description                               |
+| --------- | ---- | ------- | ----------------------------------------- |
+| `offset`  | int  | 0       | Number of records to skip (must be ≥ 0)   |
+| `limit`   | int  | 10      | Number of records to return (must be ≥ 1) |
+
+---
+
+### Example Request
+
+```http
+GET /campaigns?offset=10&limit=5
+```
+
+---
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "campID": 11,
+      "campName": "campaign 11",
+      "campDate": "2026-03-17T10:00:00",
+      "createdAt": "2026-03-17T10:00:00"
+    }
+  ],
+  "next": "http://127.0.0.1:8000/campaigns?offset=15&limit=5",
+  "prev": "http://127.0.0.1:8000/campaigns?offset=5&limit=5"
+}
+```
+
+---
+
+### 🔍 How It Works
+
+* `offset` → how many records to skip
+* `limit` → how many records to return
+* Data is fetched using:
+
+```python
+select(Campaign).offset(offset).limit(limit)
+```
+
+---
+
+### 🔗 Navigation URLs
+
+* `next` → points to the next set of results
+* `prev` → points to the previous set
+
+Logic:
+
+* If `offset + limit < total` → next page exists
+* If `offset > 0` → previous page exists
+
+---
+
+### ⚡ Notes
+
+* If no more data → `next = null`
+* If at the beginning → `prev = null`
+* Works well with infinite scroll and APIs
+
+---
+
+---
+
+###  Offset vs Page-Based Pagination
+
+| Type   | Pros             | Cons                    |
+| ------ | ---------------- | ----------------------- |
+| Offset | Simple, flexible | Slower on huge datasets |
+| Page   | Easy for users   | Less flexible           |
+| Cursor | Best performance | More complex            |
+
+---
+
