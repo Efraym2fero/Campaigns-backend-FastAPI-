@@ -295,7 +295,7 @@ The API supports **offset-based pagination**, which is efficient and flexible fo
 ### Endpoint
 
 ```http
-GET /campaigns?offset=0&limit=10
+GET /campaigns1?offset=0&limit=10
 ```
 
 ---
@@ -312,7 +312,7 @@ GET /campaigns?offset=0&limit=10
 ### Example Request
 
 ```http
-GET /campaigns?offset=10&limit=5
+GET /campaigns1?offset=10&limit=5
 ```
 
 ---
@@ -329,8 +329,8 @@ GET /campaigns?offset=10&limit=5
       "createdAt": "2026-03-17T10:00:00"
     }
   ],
-  "next": "http://127.0.0.1:8000/campaigns?offset=15&limit=5",
-  "prev": "http://127.0.0.1:8000/campaigns?offset=5&limit=5"
+  "next": "http://127.0.0.1:8000/campaigns1?offset=15&limit=5",
+  "prev": "http://127.0.0.1:8000/campaigns1?offset=5&limit=5"
 }
 ```
 
@@ -367,10 +367,172 @@ Logic:
 * Works well with infinite scroll and APIs
 
 ---
+## 3) Cursor-Based 
+
+This API uses **cursor-based pagination** to efficiently handle large datasets.
 
 ---
 
-###  Offset vs Page-Based Pagination
+## 📌 Endpoint
+
+```http id="9z0h5v"
+GET /campaigns2?cursor=<cursor>&limit=10
+```
+
+---
+
+## 🔢 Query Parameters
+
+| Parameter | Type   | Default | Description                                       |
+| --------- | ------ | ------- | ------------------------------------------------- |
+| `cursor`  | string | null    | Encoded ID of the last item from previous request |
+| `limit`   | int    | 10      | Number of records to return                       |
+
+---
+
+## 🔁 Example Requests
+
+### First Request (no cursor)
+
+```http id="r0xv0z"
+GET /campaigns2?limit=5
+```
+
+---
+
+### Next Page
+
+```http id="u1h2mq"
+GET /campaigns2?cursor=eyJpZCI6NX0=&limit=5
+```
+
+---
+
+## 📦 Example Response
+
+```json id="0m8cme"
+{
+  "data": [...],
+  "next": "http://127.0.0.1:8000/campaigns2?cursor=eyJpZCI6NX0=&limit=5"
+}
+```
+
+---
+
+## ⚙️ How It Works
+
+* The API:
+
+  * Decodes the incoming `cursor`
+  * Extracts the last `campID`
+  * Fetches records where:
+
+```python id="q4e8xt"
+Campaign.campID > cursorID
+```
+
+* Retrieves:
+
+```python id="7i7d7j"
+limit + 1
+```
+
+records to determine if more data exists
+
+---
+
+## 🔐 Cursor Encoding & Decoding
+
+The cursor is a **Base64-encoded JSON object** containing the last record ID.
+
+### Encode Cursor
+
+```python id="2z3o0y"
+def encodeCursor(val):
+    data = json.dumps({"id": val})
+    return base64.urlsafe_b64encode(data.encode()).decode()
+```
+
+---
+
+### Decode Cursor
+
+```python id="9x3d4n"
+def decodeCursor(cursor):
+    decCur = base64.urlsafe_b64decode(cursor.encode()).decode()
+    data = json.loads(decCur)
+    return data.get("id")
+```
+
+---
+
+### 🔍 Example
+
+```python id="0i8g0m"
+encodeCursor(5)
+# Output: "eyJpZCI6NX0="
+```
+
+---
+
+## Pagination Logic
+
+```python id="5p4l3z"
+data = s.exec(
+    select(Campaign)
+    .order_by(Campaign.campID)
+    .where(Campaign.campID > cursorID)
+    .limit(limit + 1)
+).all()
+
+has_next = len(data) > limit
+data = data[:limit]
+```
+
+---
+
+## Next Cursor
+
+* If more data exists:
+
+  * Take last item
+  * Encode its `campID`
+  * Return as next cursor
+
+```python id="8t7s6a"
+next_cursor = encodeCursor(data[-1].campID)
+```
+
+---
+
+## Advantages
+
+* ✅ High performance on large datasets
+* ✅ No duplicates when data changes
+* ✅ No missing records
+* ✅ Ideal for real-time APIs
+
+---
+
+## ⚠️ Notes
+
+* `cursor = null` → first page
+* `next = null` → no more data
+
+
+---
+
+## Best Use Cases
+
+* Infinite scroll
+* Large-scale APIs
+* AI systems & streaming data
+
+---
+
+---
+
+###  Offset vs Page-Based vs Cursor-Based Pagination
 
 | Type   | Pros             | Cons                    |
 | ------ | ---------------- | ----------------------- |
